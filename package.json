@@ -1,0 +1,14 @@
+{
+  "name": "poker-system",
+  "version": "1.0.0",
+  "description": "Real-time Texas Hold'em Poker System",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pokersolver": "^2.1.4",
+    "socket.io": "^4.6.1"
+  }
+}

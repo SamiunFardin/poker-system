@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poker Game System</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-box {
+      background: #1b4332;
+      border: 4px solid #ffb703;
+      border-radius: 16px;
+      padding: 25px;
+      text-align: center;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 0 20px #ffb703;
+      animation: popIn 0.3s ease-out;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    @keyframes popIn {
+      from { transform: scale(0.7); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-title { color: #ffb703; font-size: 24px; margin-top: 0; }
+    .modal-amount { font-size: 22px; color: #52b788; font-weight: bold; margin: 10px 0; }
+    .modal-desc { font-size: 16px; color: #ddd; margin-bottom: 15px; }
+
+    .playing-card {
+      display: inline-flex;
+      flex-direction: column;
+      justify-content: space-between;
+      width: 50px;
+      height: 70px;
+      background: white;
+      border-radius: 6px;
+      padding: 4px;
+      margin: 3px;
+      font-weight: bold;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+      vertical-align: middle;
+    }
+    .playing-card.red { color: #d90429; }
+    .playing-card.black { color: #212529; }
+    .card-rank { font-size: 16px; line-height: 1; text-align: left; }
+    .card-suit { font-size: 20px; line-height: 1; text-align: center; }
+    .card-back {
+      display: inline-block;
+      width: 50px;
+      height: 70px;
+      background: repeating-linear-gradient(45deg, #1d3557, #1d3557 10px, #457b9d 10px, #457b9d 20px);
+      border: 2px solid #fff;
+      border-radius: 6px;
+      margin: 3px;
+    }
+
+    #hostView { background: #1b4332; padding: 20px; border-radius: 12px; }
+    .table { border: 8px solid #b7094c; border-radius: 60px; background: #2d6a4f; padding: 30px; text-align: center; margin-bottom: 20px; }
+    .cards-container { display: flex; justify-content: center; min-height: 75px; align-items: center; margin: 15px 0; }
+    .players-grid { display: flex; justify-content: space-around; flex-wrap: wrap; }
+    .player-card { background: rgba(0,0,0,0.4); border: 2px solid #fff; padding: 10px; border-radius: 8px; margin: 5px; min-width: 130px; }
+    .active-turn { border-color: #ffb703; box-shadow: 0 0 12px #ffb703; }
+    .panel { background: #081c15; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+
+    #playerView { text-align: center; background: #222; padding: 20px; border-radius: 12px; max-width: 500px; margin: 0 auto; }
+    .controls { background: #333; padding: 15px; border-radius: 8px; margin-top: 15px; }
+
+    button { padding: 10px 16px; margin: 5px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; font-size: 14px; }
+    .btn-green { background: #52b788; color: #000; }
+    .btn-red { background: #e63946; color: #fff; }
+    .btn-blue { background: #457b9d; color: #fff; }
+    .btn-fold { background: #e63946; color: #fff; width: 85%; padding: 12px; }
+    .btn-call { background: #457b9d; color: #fff; width: 85%; padding: 12px; }
+    .btn-raise { background: #2a9d8f; color: #fff; width: 85%; padding: 12px; }
+    input { padding: 10px; margin: 8px 0; font-size: 16px; text-align: center; border-radius: 4px; border: 1px solid #555; width: 85%; }
+    table { width: 100%; border-collapse: collapse; background: #fff; color: #000; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    .ip-box { background: #2a9d8f; padding: 6px 12px; border-radius: 6px; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <div id="winnerModal" class="modal-overlay">
+    <div class="modal-box">
+      <h2 class="modal-title">🏆 Hand Settled!</h2>
+      <h3 id="winnerName" style="margin: 5px 0;">--</h3>
+      <div class="modal-amount">Won $<span id="winnerPot">0</span></div>
+      <div class="modal-desc" id="winnerDesc">--</div>
+      <button class="btn-green" onclick="closeModal('winnerModal')">OK / Continue</button>
+    </div>
+  </div>
+
+  <div id="cardsModal" class="modal-overlay">
+    <div class="modal-box">
+      <h2 class="modal-title" id="cardsStageTitle">Community Cards Dealt</h2>
+      <div class="cards-container" id="cardsModalContainer"></div>
+      <button class="btn-green" onclick="closeModal('cardsModal')">Continue</button>
+    </div>
+  </div>
+
+  <div id="lastHandModal" class="modal-overlay">
+    <div class="modal-box">
+      <h2 class="modal-title">📜 Last Hand Details</h2>
+      <div class="modal-amount">Pot: $<span id="lastPot">0</span></div>
+      <div class="modal-desc"><strong>Winner(s):</strong> <span id="lastWinner"></span></div>
+      <div class="modal-desc"><strong>Reason:</strong> <span id="lastReason"></span></div>
+      
+      <h4>Community Cards:</h4>
+      <div class="cards-container" id="lastCommunityCards"></div>
+
+      <h4>Unfolded Hole Cards:</h4>
+      <div id="lastPlayerCards"></div>
+
+      <button class="btn-green" style="margin-top:15px;" onclick="closeModal('lastHandModal')">Close</button>
+    </div>
+  </div>
+
+  <div id="hostView" style="display:none;">
+    <h1>Central Table Display & Control Panel</h1>
+    
+    <div class="panel">
+      <h3>Player Join Address</h3>
+      <div>Have players open on mobile: <span class="ip-box" id="hostIpDisplay">Detecting IP...</span></div>
+    </div>
+
+    <div class="panel">
+      <h3>Host Actions</h3>
+      <button class="btn-green" onclick="startHand()">Start Next Hand</button>
+      <button class="btn-red" onclick="cancelHand()">Cancel Hand (Refund)</button>
+      <button class="btn-blue" id="lastHandBtn" style="display:none;" onclick="showLastHand()">Show Last Hand</button>
+      <button class="btn-red" onclick="endGame()">End Game & Ledger</button>
+      <span id="timer" style="margin-left: 15px; font-weight: bold; font-size: 18px;">Timer: --</span>
+    </div>
+
+    <div class="table">
+      <h2>Pot: $<span id="pot">0</span></h2>
+      <div>Community Cards:</div>
+      <div class="cards-container" id="community"></div>
+
+      <h3>Players at Table</h3>
+      <div class="players-grid" id="players"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Pending Join Requests</h3>
+      <div id="pendingJoins">None</div>
+    </div>
+
+    <div class="panel">
+      <h3>Pending Add-on Cash Requests</h3>
+      <div id="pendingCash">None</div>
+    </div>
+
+    <div class="panel" id="summaryPanel" style="display:none; background:#fff; color:#000;">
+      <h2>Final Game Settlement Summary</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Total Buy-In</th>
+            <th>Final Stack</th>
+            <th>Net Profit/Loss</th>
+          </tr>
+        </thead>
+        <tbody id="summaryTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="playerView" style="display:none;">
+    <h2>Poker Controller</h2>
+
+    <div id="joinSection">
+      <h3>Join Table</h3>
+      <input type="text" id="playerName" placeholder="Your Name"><br/>
+      <input type="number" id="buyIn" placeholder="Buy-In Amount"><br/>
+      <button class="btn-green" style="width:85%;" onclick="requestJoin()">Send Join Request</button>
+    </div>
+
+    <div id="gameSection" style="display:none;">
+      <div><strong>Your Balance:</strong> $<span id="myChips">0</span></div>
+      <div><strong>Current Bet:</strong> $<span id="myBet">0</span></div>
+
+      <h3>Your Hole Cards</h3>
+      <div class="cards-container" id="myCards"></div>
+
+      <div class="controls" id="actionPanel" style="display:none;">
+        <h3 style="color:#ffb703; margin-top:0;">YOUR TURN</h3>
+        <button class="btn-fold" onclick="act('fold')">Fold</button><br/>
+        <button class="btn-call" id="callBtn" onclick="act('call')">Check / Call</button><br/>
+        <input type="number" id="raiseAmount" placeholder="Raise Total Amount"><br/>
+        <button class="btn-raise" onclick="act('raise')">Raise</button>
+      </div>
+
+      <div style="margin-top:20px;">
+        <input type="number" id="cashAmount" placeholder="Add-on Amount"><br/>
+        <button style="background:#ffb703; color:#000; width:85%;" onclick="requestCash()">Request Add Cash</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    let playerId = localStorage.getItem('poker_player_token');
+    if (!playerId) {
+      playerId = 'player_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('poker_player_token', playerId);
+    }
+
+    socket.on('connect', () => {
+      socket.emit('reconnect_player', { playerId });
+    });
+
+    const isHostDevice = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    document.getElementById('hostView').style.display = isHostDevice ? 'block' : 'none';
+    document.getElementById('playerView').style.display = isHostDevice ? 'none' : 'block';
+
+    const suitSymbols = { 'h': '♥', 'd': '♦', 'c': '♣', 's': '♠' };
+
+    function createCardHTML(cardObj) {
+      if (!cardObj) return '<div class="card-back"></div>';
+      const isRed = cardObj.suit === 'h' || cardObj.suit === 'd';
+      const symbol = suitSymbols[cardObj.suit] || '';
+      return `
+        <div class="playing-card ${isRed ? 'red' : 'black'}">
+          <div class="card-rank">${cardObj.rank}</div>
+          <div class="card-suit">${symbol}</div>
+        </div>
+      `;
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).style.display = 'none';
+    }
+
+    socket.on('community_cards_popup', (data) => {
+      document.getElementById('cardsStageTitle').innerText = `${data.stage} Dealt!`;
+      document.getElementById('cardsModalContainer').innerHTML = data.cards.map(c => createCardHTML(c)).join('');
+      document.getElementById('cardsModal').style.display = 'flex';
+    });
+
+    socket.on('hand_settled_popup', (data) => {
+      document.getElementById('winnerName').innerText = data.winners;
+      document.getElementById('winnerPot').innerText = data.pot;
+      document.getElementById('winnerDesc').innerText = `Evaluation: ${data.explanation}`;
+      document.getElementById('winnerModal').style.display = 'flex';
+    });
+
+    socket.on('last_hand_data', (data) => {
+      document.getElementById('lastPot').innerText = data.pot;
+      document.getElementById('lastWinner').innerText = data.winners;
+      document.getElementById('lastReason').innerText = data.explanation;
+      document.getElementById('lastCommunityCards').innerHTML = data.communityCards.map(c => createCardHTML(c)).join('');
+
+      let playersHTML = '';
+      data.unfoldedPlayers.forEach(p => {
+        playersHTML += `
+          <div style="margin-bottom:10px;">
+            <strong>${p.name}:</strong><br/>
+            ${p.cards.map(c => createCardHTML(c)).join('')}
+          </div>
+        `;
+      });
+      document.getElementById('lastPlayerCards').innerHTML = playersHTML;
+      document.getElementById('lastHandModal').style.display = 'flex';
+    });
+
+    socket.on('state_update', (data) => {
+      if (isHostDevice) {
+        if (data.gameState.serverIp) {
+          document.getElementById('hostIpDisplay').innerText = `http://${data.gameState.serverIp}:${data.gameState.serverPort}`;
+        }
+
+        document.getElementById('pot').innerText = data.gameState.pot;
+        document.getElementById('lastHandBtn').style.display = data.hasLastHand ? 'inline-block' : 'none';
+
+        const commDiv = document.getElementById('community');
+        if (data.gameState.communityCards.length === 0) {
+          commDiv.innerHTML = '<i>Waiting for next hand...</i>';
+        } else {
+          commDiv.innerHTML = data.gameState.communityCards.map(c => createCardHTML(c)).join('');
+        }
+
+        const playersDiv = document.getElementById('players');
+        playersDiv.innerHTML = '';
+        data.players.forEach((p, index) => {
+          const isTurn = index === data.gameState.currentTurnIndex;
+          playersDiv.innerHTML += `
+            <div class="player-card ${isTurn ? 'active-turn' : ''}">
+              <strong>${p.name}</strong><br/>
+              Chips: $${p.chips}<br/>
+              Bet: $${p.currentBet}<br/>
+              ${p.folded ? '<span style="color:red;">FOLDED</span>' : ''}<br/>
+              <button class="btn-red" style="font-size:11px; padding:4px 8px;" onclick="kickPlayer('${p.playerId}')">Kick</button>
+            </div>
+          `;
+        });
+
+        const joinsDiv = document.getElementById('pendingJoins');
+        joinsDiv.innerHTML = data.pendingJoins.map(j => `
+          <div>
+            ${j.name} ($${j.amount})
+            <button class="btn-green" onclick="approveJoin('${j.playerId}')">Approve</button>
+            <button class="btn-red" onclick="rejectJoin('${j.playerId}')">Reject</button>
+          </div>
+        `).join('') || 'None';
+
+        const cashDiv = document.getElementById('pendingCash');
+        cashDiv.innerHTML = data.pendingCash.map(c => `
+          <div>
+            $${c.amount} requested
+            <button class="btn-green" onclick="approveCash('${c.playerId}')">Approve</button>
+          </div>
+        `).join('') || 'None';
+
+        if (data.gameState.status === 'GAME_OVER') {
+          document.getElementById('summaryPanel').style.display = 'block';
+          const tbody = document.getElementById('summaryTable');
+          tbody.innerHTML = '';
+          
+          let allPlayers = [...data.players, ...data.historyLeft];
+          allPlayers.forEach(p => {
+            let totalBuy = (p.initialBuyIn || 0) + (p.totalRebuys || 0) || p.totalBuyIn;
+            let stack = p.chips !== undefined ? p.chips : p.finalChips;
+            let net = stack - totalBuy;
+            tbody.innerHTML += `
+              <tr>
+                <td>${p.name}</td>
+                <td>$${totalBuy}</td>
+                <td>$${stack}</td>
+                <td style="color:${net >= 0 ? 'green' : 'red'}; font-weight:bold;">$${net}</td>
+              </tr>
+            `;
+          });
+        }
+      }
+    });
+
+    socket.on('timer_tick', (sec) => {
+      if (isHostDevice) {
+        document.getElementById('timer').innerText = `Timer: ${sec}s`;
+      }
+    });
+
+    socket.on('private_state', (data) => {
+      if (!isHostDevice) {
+        document.getElementById('joinSection').style.display = 'none';
+        document.getElementById('gameSection').style.display = 'block';
+
+        document.getElementById('myChips').innerText = data.chips;
+        document.getElementById('myBet').innerText = data.currentBet;
+
+        const callAmt = data.highestBet - data.currentBet;
+        document.getElementById('callBtn').innerText = callAmt > 0 ? `Call ($${callAmt})` : 'Check';
+
+        const cardsDiv = document.getElementById('myCards');
+        if (data.cards && data.cards.length === 2) {
+          cardsDiv.innerHTML = createCardHTML(data.cards[0]) + createCardHTML(data.cards[1]);
+        } else {
+          cardsDiv.innerHTML = createCardHTML(null) + createCardHTML(null);
+        }
+
+        document.getElementById('actionPanel').style.display = (data.isMyTurn && !data.folded) ? 'block' : 'none';
+      }
+    });
+
+    function startHand() { socket.emit('host_start_hand'); }
+    function cancelHand() { socket.emit('host_cancel_hand'); }
+    function endGame() { socket.emit('host_end_game'); }
+    function showLastHand() { socket.emit('get_last_hand'); }
+    function approveJoin(pId) { socket.emit('host_approve_join', pId); }
+    function rejectJoin(pId) { socket.emit('host_reject_join', pId); }
+    function approveCash(pId) { socket.emit('host_approve_cash', pId); }
+    function kickPlayer(pId) { socket.emit('host_kick_player', pId); }
+
+    function requestJoin() {
+      const name = document.getElementById('playerName').value;
+      const amount = document.getElementById('buyIn').value;
+      if (name && amount) {
+        socket.emit('request_join', { playerId, name, amount });
+        document.getElementById('joinSection').innerHTML = '<h3>Request Sent! Waiting for host approval...</h3>';
+      }
+    }
+
+    function act(action) {
+      const amount = document.getElementById('raiseAmount').value;
+      socket.emit('player_action', { playerId, action, amount });
+    }
+
+    function requestCash() {
+      const amount = document.getElementById('cashAmount').value;
+      if (amount) {
+        socket.emit('request_cash', { playerId, amount });
+        alert('Cash request sent to host.');
+      }
+    }
+  </script>
+</body>
+</html>
